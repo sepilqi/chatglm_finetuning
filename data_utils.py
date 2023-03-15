@@ -36,7 +36,7 @@ train_info_args = {
     'train_batch_size': 2,
     'eval_batch_size': 2,
     'test_batch_size': 2,
-    'learning_rate': 1e-4,
+    'learning_rate': 5e-5,
     'adam_epsilon': 1e-8,
     'gradient_accumulation_steps': 1,
     'max_grad_norm': 1.0,
@@ -91,13 +91,13 @@ class NN_DataHelper(DataHelper):
                     continue
                 input_ids_all += input_ids
 
-            input_ids_all += [tokenizer.eos_token_id]
+        if not hasattr(self,'sptoken'):
+            self.sptoken = tokenizer.encode(text="")[-2:]
 
-        stoken = tokenizer.encode(text="",add_special_tokens=True)[-2:]
         pos = 0
         ds = []
         while pos < len(input_ids_all):
-            input_ids_ = input_ids_all[pos: pos + max_seq_length - 2] + stoken
+            input_ids_ = input_ids_all[pos: pos + max_seq_length - len(self.sptoken)] + self.sptoken
 
             pos += stride
             if len(input_ids_) <= 5:
@@ -107,16 +107,13 @@ class NN_DataHelper(DataHelper):
             seqlen = np.asarray(len(input_ids_), dtype=np.int32)
             pad_len = max_seq_length - seqlen
             input_ids_ = np.asarray(input_ids_, dtype=np.int32)
-            attention_mask = np.ones_like(input_ids_, dtype=np.int32)
             labels = np.asarray(labels, dtype=np.int32)
             if pad_len:
                 pad_val = tokenizer.pad_token_id
-                input_ids_ = np.pad(input_ids_, (0, pad_len), 'constant', constant_values=(pad_val, pad_val))
-                attention_mask = np.pad(attention_mask, (0, pad_len), 'constant', constant_values=(0, 0))
-                labels = np.pad(labels, (0, pad_len), 'constant', constant_values=(-100, -100))
+                input_ids_ = np.pad(input_ids_, (pad_len, 0), 'constant', constant_values=(pad_val, pad_val))
+                labels = np.pad(labels, (pad_len,0), 'constant', constant_values=(-100, -100))
             d = {
                 'input_ids': input_ids_,
-                'attention_mask': attention_mask,
                 'labels': labels,
                 'seqlen': seqlen
             }
@@ -189,8 +186,9 @@ class NN_DataHelper(DataHelper):
             o[k] = torch.stack(o[k])
 
         max_len = torch.max(o.pop('seqlen'))
-        o['input_ids'] = o['input_ids'][:, :max_len]
-        o['labels'] = o['labels'][:, :max_len].long()
+        s = o['input_ids'].size(1) - max_len
+        o['input_ids'] = o['input_ids'][:, s:]
+        o['labels'] = o['labels'][:, s:].long()
         return o
 
 

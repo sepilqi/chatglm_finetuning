@@ -35,11 +35,11 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
     def generate_text(pl_module: MyTransformer, prompt_text, tokenizer: ChatGLMTokenizer, max_target_length, device=0):
         device = torch.device('cuda:{}'.format(device))
         # 简易测试生成
-        input_ids = tokenizer.encode(prompt_text)
+        input_ids_ = tokenizer.encode(prompt_text)
         gen_ids, gen_tokens = [], []
 
-        input_ids = input_ids[:-2]
-        gen_ids = input_ids[-2:]
+        input_ids = input_ids_[:-2]
+        gen_ids = input_ids_[-2:]
 
         batch = {}
         for i in range(max_target_length):
@@ -76,8 +76,8 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
             config.save_pretrained(self.output_dir)
 
         prefixs = [
-            "帮我写一个请假条，我因为新冠不舒服，需要请假3天，请领导批准",
-            "你能干什么",
+            "写一个诗歌，关于冬天",
+            "从南京到上海的路线",
         ]
 
         device = trainer.global_rank
@@ -120,6 +120,7 @@ if __name__ == '__main__':
         accumulate_grad_batches=training_args.gradient_accumulation_steps,
         num_sanity_val_steps=0,
         strategy='ddp' if torch.cuda.device_count() > 1 else None,
+        # precision=16,#半精度
     )
 
     dataHelper = NN_DataHelper(model_args, training_args, data_args)
