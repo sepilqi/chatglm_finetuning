@@ -20,20 +20,20 @@ from transformers import HfArgumentParser
 from tokenization_chatglm import ChatGLMTokenizer
 
 train_info_args = {
-    'devices': 1,
+    'devices': 8,
     'data_backend': 'record',
     'model_type': 'chatglm',
     # 预训练模型路径 , 从0训练，则置空
-    'model_name_or_path': '/data/nlp/pre_models/torch/chatglm/chatglm-6b',
+    'model_name_or_path': 'THUDM/chatglm-6b',
     'config_name': './config/config_small.json',
-    'tokenizer_name': '/data/nlp/pre_models/torch/chatglm/chatglm-6b',
+    'tokenizer_name': 'THUDM/chatglm-6b',
     'convert_onnx': False, # 转换onnx模型
     'do_train': True,
     'train_file':  [ './data/finetune_train_examples.json'],
     'max_epochs': 3,
     'max_steps': -1,
     'optimizer': 'lion', # one of adamw,adam,lamb,lion
-    'train_batch_size': 4,
+    'train_batch_size': 2,
     'eval_batch_size': 2,
     'test_batch_size': 2,
     'learning_rate': 1e-4,
