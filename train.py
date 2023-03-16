@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import pytorch_lightning as pl
+from utils import get_config
 import copy
 import json
 import os
@@ -23,7 +25,6 @@ class MyTransformer(TransformerChatGlmLMHeadModel, with_pl=True):
     def __init__(self, *args, **kwargs):
         super(MyTransformer, self).__init__(*args, **kwargs)
 
-import pytorch_lightning as pl
 
 class MySimpleModelCheckpoint(SimpleModelCheckpoint):
     def __init__(self, *args, **kwargs):
@@ -44,9 +45,10 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
         # 简易测试生成
         input_ids_ = tokenizer.encode(prompt_text)
         gen_tokens = []
+        tail_ids = input_ids_[-2:]
+
         input_ids = input_ids_[:-2]
         gen_ids = []
-        tail_ids = input_ids_[-2:]
 
         batch = {}
         for i in range(max_target_length):
@@ -61,8 +63,7 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
             logits = out['outputs'][0]
             logits = np.argmax(logits[:, -1], axis=-1)
             logits = logits[0].tolist()
-
-            if 15001 == logits:
+            if logits in tail_ids:
                 continue
 
             gen_ids.append(logits)
@@ -88,6 +89,7 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
         prefixs = [
             "写一个诗歌，关于冬天",
             "从南京到上海的路线",
+            "晚上睡不着应该怎么办",
         ]
 
         device = trainer.global_rank
@@ -107,8 +109,6 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
             print()
 
 
-from .utils import get_config
-
 if __name__ == '__main__':
 
     parser = HfArgumentParser(
@@ -123,7 +123,7 @@ if __name__ == '__main__':
         every_n_epochs=1,
         every_n_train_steps=2000 // training_args.gradient_accumulation_steps)
 
-    deepspeed_config = get_config("deepspeed")
+    deepspeed_config = None  # get_config("deepspeed")
     strategy = 'ddp' if torch.cuda.device_count() > 1 else None
     if deepspeed_config is not None and len(deepspeed_config):
         strategy = DeepSpeedStrategy(config=deepspeed_config)
