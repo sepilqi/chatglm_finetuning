@@ -8,3 +8,6 @@ output
 notebooks
 .vscode
 best_ckpt
+scripts/run.sh
+wp
+.gitignore
