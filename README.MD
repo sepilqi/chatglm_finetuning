@@ -2,7 +2,7 @@
 ## 安装
 
 - pip install -U deep_training >= 0.0.18 cpm_kernels icetk transformers>=4.26.1
-- 最小版本要求 deep_training>=0.0.18.post3
+- 最小版本要求 deep_training>=0.0.18.post4
 
 ## 状态 ########### 测试中 ###########
     当前初步测试完成 
@@ -77,18 +77,30 @@
 
 
 ## 推理
-    12g 显卡即可测试
-    python infer.py
+     python infer.py
+
+### 硬件需求
+
+| **量化等级**    | **最低 GPU 显存** |
+| -------------- | ----------------- |
+| FP16（无量化）   | 13 GB             |
+| INT8           | 10 GB              |
+| INT4           | 6 GB               |
+
+   
 
 ![inference](1.png)
 
 ## 训练
     完整参数为 config.json
     若显存不足 ， 可以修改 config_small.json num_layers 层数
-
+    训练精度 可以修改 config_small.json precision 16 32
     python train.py
 
 
+
+## 是否开启deepspeed
+    启动则将train.py  注释掉 deepspeed_config = None
 
 
 

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import copy
+import json
 import os
 
 import numpy as np
@@ -7,7 +8,8 @@ import torch
 from deep_training.data_helper import ModelArguments, DataArguments, TrainingArguments
 from deep_training.nlp.models.chatglm import TransformerChatGlmLMHeadModel, ChatGLMConfig, setup_model_profile
 from deep_training.utils.trainer import SimpleModelCheckpoint
-from pytorch_lightning import Trainer
+from pytorch_lightning  import Trainer
+from pytorch_lightning.strategies import DeepSpeedStrategy
 from transformers import HfArgumentParser
 
 from data_utils import NN_DataHelper, train_info_args, preprocess, postprocess
@@ -36,15 +38,15 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
         device = torch.device('cuda:{}'.format(device))
         # 简易测试生成
         input_ids_ = tokenizer.encode(prompt_text)
-        gen_ids, gen_tokens = [], []
-
+        gen_tokens = []
         input_ids = input_ids_[:-2]
-        gen_ids = input_ids_[-2:]
+        gen_ids = []
+        tail_ids = input_ids_[-2:]
 
         batch = {}
         for i in range(max_target_length):
             batch.clear()
-            batch['input_ids'] = [input_ids + gen_ids]
+            batch['input_ids'] = [input_ids + gen_ids + tail_ids]
             for k in batch:
                 batch[k] = torch.tensor(batch[k], dtype=torch.int32,device=device)
 
@@ -52,6 +54,11 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
             logits = out['outputs'][0]
             logits = np.argmax(logits[:, -1], axis=-1)
             logits = logits[0].tolist()
+
+            if 15001 == logits:
+                continue
+
+
             gen_ids.append(logits)
             token = tokenizer.decode([logits])
             gen_tokens.append(token)
@@ -87,7 +94,7 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
 
         print('*' * 30, 'generate_text...')
         for text in prefixs:
-            input_text = text
+            input_text = '问：{}\n答：'.format(text)
             input_text = preprocess(input_text)
             output = MySimpleModelCheckpoint.generate_text(pl_module, input_text, tokenizer,
                                                            data_args.max_target_length, device=device)
@@ -96,7 +103,17 @@ class MySimpleModelCheckpoint(SimpleModelCheckpoint):
             print('output', output)
             print()
 
+
+def get_deepspeed_config():
+    with open('./deepspeed.json', mode='r', encoding='utf-8') as f:
+        deepspeed_config = json.loads(f.read())
+    # 是否开启deepspeed
+    deepspeed_config = None
+    return deepspeed_config
+
 if __name__ == '__main__':
+
+
 
     parser = HfArgumentParser((ModelArguments, TrainingArguments, DataArguments))
     model_args, training_args, data_args = parser.parse_dict(train_info_args)
@@ -108,6 +125,12 @@ if __name__ == '__main__':
         # monitor="loss",
         every_n_epochs=1,
                                                   every_n_train_steps=2000 // training_args.gradient_accumulation_steps)
+
+    deepspeed_config = get_deepspeed_config()
+    strategy = 'ddp' if torch.cuda.device_count() > 1 else None
+    if deepspeed_config is not None and len(deepspeed_config):
+        strategy = DeepSpeedStrategy(config=deepspeed_config)
+
     trainer = Trainer(
         callbacks=[checkpoint_callback],
         max_epochs=training_args.max_epochs,
@@ -119,7 +142,7 @@ if __name__ == '__main__':
         gradient_clip_val=training_args.max_grad_norm,
         accumulate_grad_batches=training_args.gradient_accumulation_steps,
         num_sanity_val_steps=0,
-        strategy='ddp' if torch.cuda.device_count() > 1 else None,
+        strategy=strategy
         # precision=16,#半精度
     )
 
@@ -159,14 +182,7 @@ if __name__ == '__main__':
 
         if train_datasets is not None:
             trainer.fit(model, train_dataloaders=train_datasets)
-        # else:
-        #     eval_datasets = dataHelper.load_sequential_sampler(dataHelper.eval_files,batch_size=training_args.eval_batch_size,collate_fn=dataHelper.collate_fn)
-        #     test_datasets = dataHelper.load_sequential_sampler(dataHelper.test_files,batch_size=training_args.test_batch_size,collate_fn=dataHelper.collate_fn)
-        #
-        #     if eval_datasets is not None:
-        #         trainer.validate(model, dataloaders=eval_datasets, ckpt_path='./best.pt')
-        #     if test_datasets is not None:
-        #         trainer.test(model, dataloaders=test_datasets, ckpt_path='best.pt')
+
     else:
         # 加载权重
         model = MyTransformer.load_from_checkpoint(ckpt_path, config=config,
